@@ -80,3 +80,18 @@ def split_video_to_frames(src_video_path, dest_img_path, fps) -> None:
 
     src.release()
     cv2.destroyAllWindows()
+
+def train_val_test_split(df):
+  """
+    Split the dataframe into training, validation, and test sets randomly.
+    
+    Args:
+      df: Dataframe with features and labels
+      
+    Returns:
+      train: training set dataframe with reference to features and label
+      val: validation set dataframe with reference to features and label
+      test: test set dataframe with reference to features and label
+  """
+  train, val, test = np.split(df.sample(frac = 1, random_state = 1), [int(.6 * len(df)), int(.8 * len(df))])
+  return train, val, test

@@ -113,7 +113,8 @@ def create_frames_labels_list(data_directory):
   for root, dirs, files in os.walk(data_directory):
     file_list = []
     for f in files:
-      file_list.append(f)
+      # Should be the filepath for the frame image
+      file_list.append(os.path.join(root, f))
     if len(file_list) >= 1:
       tree_structure[root] = file_list
   

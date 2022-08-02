@@ -96,7 +96,7 @@ def train_val_test_split(df):
   train, val, test = np.split(df.sample(frac = 1, random_state = 1), [int(.6 * len(df)), int(.8 * len(df))])
   return train, val, test
 
-def create_frames_labels_list(data_directory):
+def create_frames_labels_mapping(data_directory):
   """
     Create the mapping of the frames to their respective folders that represent one video and their label.
 
@@ -104,10 +104,7 @@ def create_frames_labels_list(data_directory):
       data_directory: Where frames are located in the file path.
 
     Return:
-      frames_label_list: List of frames associated with their respective labels with the following structure: 
-      [[[frame1, frame2, ...], label1],
-         frame1, frame2, ...], label2],
-         ...]
+      frames_label_df: Dataframe of frames associated with their respective labels.
   """
   tree_structure = dict()
   for root, dirs, files in os.walk(data_directory):
@@ -118,18 +115,10 @@ def create_frames_labels_list(data_directory):
     if len(file_list) >= 1:
       tree_structure[root] = file_list
   
-  # Create the [[[frame1, frame2, ...], label1],
-  #               frame1, frame2, ...], label2],
-  #               ...]
-  # type structure
-  frames_label_list = []
-  for t in tree_structure:
-    frames = []
-    # Get label name from the key of dictionary
-    # Use the list of frames, the value, as the value
-    label = os.path.basename(os.path.normpath(t)).split('_')[1]
-    frames.append(tree_structure[t])
-    frames.append(label)
-    frames_label_list.append(frames)
+  # Create a dataframe of the list of frames with their associated label using a generator
+  frames_label_df = pd.DataFrame(
+      ([tree_structure[t], os.path.basename(os.path.normpath(t)).split('_')[1]] for t in tree_structure),
+      columns = ['Frame List', 'Label']
+  )
   
-  return frames_label_list
+  return frames_label_df

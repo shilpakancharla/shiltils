@@ -122,3 +122,28 @@ def create_frames_labels_mapping(data_directory):
   )
   
   return frames_label_df
+
+def filter_frames(frames_label_df):
+  """
+    Returns a dataframe with column of frames that are all of the same temporal length.
+
+    Args:
+      frames_label_df: Dataframe with list of frames (differing lengths between rows) and their associated label.
+
+    Return:
+      frames_label_df: Dataframe that includes the original contents of the parameter passed in and a column of lists of frames of the temporal length.
+  """
+  # Ensure all frames in the list have the same temporal length
+  temporal_length = sys.maxsize
+  filtered_frames = []
+  for inst in frames_label_df['Frame List']:
+    if len(inst) < temporal_length:
+      temporal_length = len(inst)
+  
+  # If the list of frames is longer than the temporal length, delete those excess frames
+  frames_label_df['Filtered Frames'] = None
+  for index, inst in frames_label_df.iterrows():
+    filtered_inst = inst['Frame List'][0:temporal_length]
+    frames_label_df.at[index, 'Filtered Frames'] = filtered_inst
+
+  return frames_label_df

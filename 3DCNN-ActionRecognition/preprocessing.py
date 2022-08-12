@@ -50,36 +50,32 @@ def convert_to_greyscale(src_video_path, dest_video_path) -> None:
 
   src.release()
   cv2.destroyAllWindows()
+
+def split_video_to_frames(src_video_path, dest_img_path, frame_subsample_factor):
+  """
+  Split video into frames.
+
+  Args:
+    src_video_path: Video file path to get frames from.
+    dest_img_path: Path to place images in.
+    frame_subsample_factor: Sampling every number of frames such that we do not use the entire video.
+  """
+  # Check if the destination folder already exists
+  if not pathlib.Path(dest_img_path).exists():
+    pathlib.Path(dest_img_path).mkdir(parents = True, exist_ok = True)
   
-def split_video_to_frames(src_video_path, dest_img_path, fps) -> None:
-  """
-    Split video into frames.
-
-    Args: 
-      src_video_path: Video file path to get frames from
-      dest_img_path: Path to place images in
-      fps: Frames per second to create images
-  """
-  # Get the directory name from the src_video_path
-  if os.path.exists(dest_img_path):
-    print(dest_img_path + " already exists. Do not create frames.")
-  else:
-    # Create the directory
-    print("Creating " + dest_img_path)
-    os.makedirs(dest_img_path)
-    src = cv2.VideoCapture(src_video_path)
-    count = 0
-    while True:
-      ret, frame = src.read()
-      if frame is None:
-        break
-      else:
-        cv2.imwrite(dest_img_path + "frame%d.jpg" % count, frame)
-        print("Created " + dest_img_path + "frame%d.jpg" % count)
-        count += 1
-
-    src.release()
-    cv2.destroyAllWindows()
+  # Read each frame by frame
+  src = cv2.VideoCapture(str(src_video_path))
+  count = 0
+  while True:
+    ret, frame = src.read()
+    if frame is None:
+      break
+    if count % frame_subsample_factor == 0:
+      cv2.imwrite(str(dest_img_path/f"frame{count:04d}.jpg"), frame)
+    count += 1
+  src.release()
+  cv2.destroyAllWindows()
 
 def train_val_test_split(df):
   """
@@ -102,48 +98,78 @@ def create_frames_labels_mapping(data_directory):
 
     Args:
       data_directory: Where frames are located in the file path.
-
+      
     Return:
       frames_label_df: Dataframe of frames associated with their respective labels.
   """
-  tree_structure = dict()
-  for root, dirs, files in os.walk(data_directory):
-    file_list = []
-    for f in files:
-      # Should be the filepath for the frame image
-      file_list.append(os.path.join(root, f))
-    if len(file_list) >= 1:
-      tree_structure[root] = file_list
-  
-  # Create a dataframe of the list of frames with their associated label using a generator
+  root_directory = pathlib.Path(data_directory)
+  frames_for_video = collections.defaultdict(list)
+  for frame_path in root_directory.glob('*/*/*.jpg'):
+    frames_for_video[frame_path.parent].append(frame_path)
+ 
   frames_label_df = pd.DataFrame(
-      ([tree_structure[t], os.path.basename(os.path.normpath(t)).split('_')[1]] for t in tree_structure),
+      ([sorted(frames_for_video[x]), x.name.split('_')[1]] for x in frames_for_video),
       columns = ['Frame List', 'Label']
   )
-  
+
   return frames_label_df
 
-def filter_frames(frames_label_df):
+def get_random_subsection(frame_list, temporal_length):
   """
-    Returns a dataframe with column of frames that are all of the same temporal length.
+    Returns a random subsection of frames.
+
+    Args:
+      frame_list: List of frames for a particular video (can be Pandas series data type passed in).
+      temporal_length: Length of the frames desired.
+
+    Return:
+      Subsection of the frames from a random starting point of the specified temporal length.
+  """
+  if temporal_length == len(frame_list):
+    return frame_list
+  
+  last_idx = len(frame_list) - 1
+  idx = len(frame_list) // 2
+  # Generate two random numbers for start and halfway point of list that must have a difference of temporal length
+  start = random.randint(0, idx)
+  if start + temporal_length > last_idx:
+    # Backtrack such that you get the section within the length of the list
+    start = (start + temporal_length) - last_idx
+
+  return frame_list[start:start + temporal_length]
+
+def filter_frames(frames_label_df, temporal_length = 50):
+  """
+    Returns a dataframe with column of frames that are all of the same temporal length. The newly returned
+    set of filtered frames are a random subsection of the original list of frames for a video.
 
     Args:
       frames_label_df: Dataframe with list of frames (differing lengths between rows) and their associated label.
+      temporal_length: Number of frames from each video.
 
     Return:
       frames_label_df: Dataframe that includes the original contents of the parameter passed in and a column of lists of frames of the temporal length.
-  """
-  # Ensure all frames in the list have the same temporal length
-  temporal_length = sys.maxsize
-  filtered_frames = []
-  for inst in frames_label_df['Frame List']:
-    if len(inst) < temporal_length:
-      temporal_length = len(inst)
-  
+  """  
   # If the list of frames is longer than the temporal length, delete those excess frames
   frames_label_df['Filtered Frames'] = None
   for index, inst in frames_label_df.iterrows():
-    filtered_inst = inst['Frame List'][0:temporal_length]
+    filtered_inst = get_random_subsection(inst['Frame List'], temporal_length)
+    if len(filtered_inst) != temporal_length:
+      filtered_inst = inst['Frame List'][:temporal_length]
     frames_label_df.at[index, 'Filtered Frames'] = filtered_inst
 
+  return frames_label_df
+
+def encode_labels_of_frames(frames_label_df):
+  """
+    Adds a column of encoding for the categorical values of the category that the frames belong to.
+
+    Args:
+      frames_label_df: Dataframe with list of frames and their associated label.
+
+    Return:
+      frames_label_df: Dataframe that includes a column of encoded label.
+  """
+  frames_label_df['Label'] = frames_label_df['Label'].astype('category')
+  frames_label_df['Labels Encoded'] = frames_label_df['Label'].cat.codes
   return frames_label_df

@@ -1,5 +1,7 @@
 import cv2
+import keras
 import numpy as np
+import tensorflow as tf
 
 def rotate_image(image_path, angle):
   """
@@ -25,3 +27,13 @@ def rotate_image(image_path, angle):
 
   # Perform rotation and return image
   return cv2.warpAffine(image, M, (new_width, new_height))
+
+# Implementation of encoder in TensorFlow
+def encode_labels(self, label):
+  classes = self.df_labels.columns.tolist()
+  table = tf.lookup.StaticHashTable(
+      tf.lookup.KeyValueTensorInitializer(tf.constant(classes),
+                                          tf.range(len(classes))),
+                                    default_value=-1)
+  label_encoder = tf.keras.layers.Lambda(lambda x: table.lookup(x))
+  return label_encoder(tf.constant(label))
